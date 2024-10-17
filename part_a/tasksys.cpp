@@ -1,5 +1,6 @@
 #include "tasksys.h"
-
+#include <thread>
+#define DEFAULT_NUM_THREADS 2
 
 IRunnable::~IRunnable() {}
 
@@ -55,21 +56,52 @@ TaskSystemParallelSpawn::TaskSystemParallelSpawn(int num_threads): ITaskSystem(n
     // Implementations are free to add new class member variables
     // (requiring changes to tasksys.h).
     //
+
+    // Harish - Step B - create num_threads and keep them handy. Add new class member variables to keep track of the threads. 
 }
 
 TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {}
 
+typedef struct
+{
+    IRunnable* runnable;
+    int task_start_index;
+    int task_end_index;
+    int num_total_tasks;
+} WorkerArgs;
+
+void parallelSpawnWorkerThread(WorkerArgs *const args) {
+    for (int i = args->task_start_index; i < args->task_end_index; ++i) {
+        args->runnable->runTask(i, args->num_total_tasks);
+    }
+}
+
 void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
 
-
+    
     //
     // TODO: CS149 students will modify the implementation of this
     // method in Part A.  The implementation provided below runs all
     // tasks sequentially on the calling thread.
     //
+    // Harish - Step A - Create num_threads threads, assign runTask to each thread in a round-robin manner. Finally, release all the threads. Run test suite and measure performance. 
+    std::thread workers[DEFAULT_NUM_THREADS];
 
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
+    // Harish - Step C - use the thread pool (from step 2) to create this. Not sure what variables are shared between threads? 
+
+    //int tasks_per_thread = num_total_tasks/DEFAULT_NUM_THREADS;
+    // for (int i = 0; i < num_total_tasks; i++) {
+    //     runnable->runTask(i, num_total_tasks);
+    // }
+
+    int tasks_per_thread = (num_total_tasks + DEFAULT_NUM_THREADS - 1) / DEFAULT_NUM_THREADS;
+    for (int i = 0; i < num_total_tasks; i += tasks_per_thread) {
+        WorkerArgs args = {runnable, i, std::min(num_total_tasks, i + tasks_per_thread), num_total_tasks};
+        workers[i / tasks_per_thread] = std::thread(parallelSpawnWorkerThread, &args);
+    }
+
+    for (int j = 0; j < num_total_tasks; j += tasks_per_thread) {
+        workers[j / tasks_per_thread].join();
     }
 }
 
