@@ -71,7 +71,7 @@ typedef struct
 } WorkerArgs;
 
 void parallelSpawnWorkerThread(WorkerArgs *const args) {
-    for (int i = args->task_start_index; i < args->task_end_index; ++i) {
+    for (int i = args->task_start_index; i < args->task_end_index; i++) {
         args->runnable->runTask(i, args->num_total_tasks);
     }
 }
@@ -86,6 +86,7 @@ void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
     //
     // Harish - Step A - Create num_threads threads, assign runTask to each thread in a round-robin manner. Finally, release all the threads. Run test suite and measure performance. 
     std::thread workers[DEFAULT_NUM_THREADS];
+    WorkerArgs args[DEFAULT_NUM_THREADS];
 
     // Harish - Step C - use the thread pool (from step 2) to create this. Not sure what variables are shared between threads? 
 
@@ -96,8 +97,8 @@ void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
 
     int tasks_per_thread = (num_total_tasks + DEFAULT_NUM_THREADS - 1) / DEFAULT_NUM_THREADS;
     for (int i = 0; i < num_total_tasks; i += tasks_per_thread) {
-        WorkerArgs args = {runnable, i, std::min(num_total_tasks, i + tasks_per_thread), num_total_tasks};
-        workers[i / tasks_per_thread] = std::thread(parallelSpawnWorkerThread, &args);
+        args[i / tasks_per_thread] = {runnable, i, std::min(num_total_tasks, i + tasks_per_thread), num_total_tasks};
+        workers[i / tasks_per_thread] = std::thread(parallelSpawnWorkerThread, args + i / tasks_per_thread);
     }
 
     for (int j = 0; j < num_total_tasks; j += tasks_per_thread) {
