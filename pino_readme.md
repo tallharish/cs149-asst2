@@ -18,3 +18,4 @@ work so far on part a, step 2: code can be found in branch part_a_2_pino
 **in run**
 - does static assignment of loads, similar to in step 1
 - assigns a new load to a thread by updating assignments_, and increments still_running_ by 1
+- run waits until still_running_ becomes 0 before exiting, ensuring its synchrony guarantee
