@@ -3,6 +3,7 @@ Pino updates:
 work so far on part a, step 2: code can be found in branch part_a_2_pino
 
 **in the constructor:**
+
 -array of threads, called pool_
 -array of PoolAssignments, called assignments_, one per thread:
   - PoolAssignment structs keep track of work assigned to each thread
