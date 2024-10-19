@@ -1,4 +1,5 @@
 #include "tasksys.h"
+#include <iostream>
 #define DEFAULT_NUM_THREADS 1
 
 IRunnable::~IRunnable() {}
@@ -147,8 +148,7 @@ void parallelSpawnWorkerThreadSpinning(SpinningWorkerArgs* args) {
             args->mutex->unlock();
         }
         
-    }
-    
+    } 
 }
 
 TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int num_threads): ITaskSystem(num_threads) {
@@ -159,21 +159,19 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
     // (requiring changes to tasksys.h).
     //
     num_threads_ = DEFAULT_NUM_THREADS;
-    std::thread pool[num_threads_];
+    // std::thread pool[num_threads_];
     SpinningWorkerArgs args[num_threads_];
     PoolAssignment assignments[num_threads_] = {0, nullptr, 0, 0, 0};
-    pool_ = pool;
+    // pool_ = pool;
     assignments_ = assignments;
     finished_ = false;
     still_running_ = 0;
 
-
-
     for (int i = 0; i < num_threads_; i++) {
         args[i] = {i, assignments_, &finished_, &mutex_, &still_running_};
-        pool_[i] = std::thread(parallelSpawnWorkerThreadSpinning, args + i);
+        pool_.push_back(std::thread(parallelSpawnWorkerThreadSpinning, args + i));
     }
-    
+  
 }
 
 TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {
@@ -192,9 +190,9 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_tota
     // tasks sequentially on the calling thread.
     //
 
-    // for (int i = 0; i < num_total_tasks; i++) {
-    //     runnable->runTask(i, num_total_tasks);
-    // }
+    for (int i = 0; i < num_total_tasks; i++) {
+        runnable->runTask(i, num_total_tasks);
+    }
 
     int tasks_per_thread = (num_total_tasks + num_threads_ - 1) / num_threads_;
     for (int i = 0; i < num_total_tasks; i += tasks_per_thread) {

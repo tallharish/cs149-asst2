@@ -4,6 +4,7 @@
 #include "itasksys.h"
 #include <mutex>
 #include <thread>
+#include <vector>
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
@@ -64,7 +65,7 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
         void sync();
         
     private:
-        std::thread* pool_;
+        std::vector<std::thread> pool_;
         PoolAssignment* assignments_;
         bool finished_;
         int num_threads_;
