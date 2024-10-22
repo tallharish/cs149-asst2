@@ -1,6 +1,9 @@
 #include "tasksys.h"
+#include <cassert>
 #include <iostream>
-#define DEFAULT_NUM_THREADS 1
+#include <complex>
+#include <unistd.h>
+#define DEFAULT_NUM_THREADS 2
 
 IRunnable::~IRunnable() {}
 
@@ -58,6 +61,7 @@ TaskSystemParallelSpawn::TaskSystemParallelSpawn(int num_threads): ITaskSystem(n
     //
 
     // Harish - Step B - create num_threads and keep them handy. Add new class member variables to keep track of the threads. 
+    num_threads_ = num_threads;
 }
 
 TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {}
@@ -85,17 +89,12 @@ void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
     // tasks sequentially on the calling thread.
     //
     // Harish - Step A - Create num_threads threads, assign runTask to each thread in a round-robin manner. Finally, release all the threads. Run test suite and measure performance. 
-    std::thread workers[DEFAULT_NUM_THREADS];
-    WorkerArgs args[DEFAULT_NUM_THREADS];
+    std::thread workers[num_threads_];
+    WorkerArgs args[num_threads_];
 
     // Harish - Step C - use the thread pool (from step 2) to create this. Not sure what variables are shared between threads? 
 
-    //int tasks_per_thread = num_total_tasks/DEFAULT_NUM_THREADS;
-    // for (int i = 0; i < num_total_tasks; i++) {
-    //     runnable->runTask(i, num_total_tasks);
-    // }
-
-    int tasks_per_thread = (num_total_tasks + DEFAULT_NUM_THREADS - 1) / DEFAULT_NUM_THREADS;
+    int tasks_per_thread = (num_total_tasks + num_threads_ - 1) / num_threads_;
     for (int i = 0; i < num_total_tasks; i += tasks_per_thread) {
         args[i / tasks_per_thread] = {runnable, i, std::min(num_total_tasks, i + tasks_per_thread), num_total_tasks};
         workers[i / tasks_per_thread] = std::thread(parallelSpawnWorkerThread, args + i / tasks_per_thread);
@@ -127,28 +126,29 @@ const char* TaskSystemParallelThreadPoolSpinning::name() {
     return "Parallel + Thread Pool + Spin";
 }
 
-typedef struct
-{
-    int id;
-    PoolAssignment* assignments;
-    bool* finished;
-    std::mutex* mutex;
-    int* still_running;
-} SpinningWorkerArgs;
-
-void parallelSpawnWorkerThreadSpinning(SpinningWorkerArgs* args) {
-    while (!(*(args->finished))) {
-        if (args->assignments[args->id].assigned) {
-            for (int i = args->assignments[args->id].task_start_index; i < args->assignments[args->id].task_end_index; i++) {
-                args->assignments[args->id].runnable->runTask(i, args->assignments[args->id].num_total_tasks);
-            }
-            args->assignments[args->id].assigned = false;
-            args->mutex->lock();
-            *(args->still_running) -= 1;
-            args->mutex->unlock();
-        }
+void TaskSystemParallelThreadPoolSpinning::parallelSpawnWorkerThreadSpinning(int id) {    
+    while (!finished_) {
+        Task cur_task;
+        bool assigned = false;
         
-    } 
+        task_q_mutex_.lock();
+        
+        if (unassigned_tasks_.size() > 0) {
+            cur_task = unassigned_tasks_.front();
+            unassigned_tasks_.pop();
+            assigned = true;
+        }
+        task_q_mutex_.unlock();
+        if (assigned) {
+            cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
+            assigned = false;
+            num_completed_mutex_.lock();
+            num_completed_ += 1;
+            num_completed_mutex_.unlock();
+        }
+
+        
+    }  
 }
 
 TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int num_threads): ITaskSystem(num_threads) {
@@ -158,20 +158,12 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
     // Implementations are free to add new class member variables
     // (requiring changes to tasksys.h).
     //
-    num_threads_ = DEFAULT_NUM_THREADS;
-    // std::thread pool[num_threads_];
-    SpinningWorkerArgs args[num_threads_];
-    PoolAssignment assignments[num_threads_] = {0, nullptr, 0, 0, 0};
-    // pool_ = pool;
-    assignments_ = assignments;
+    num_threads_ = num_threads;
     finished_ = false;
-    still_running_ = 0;
 
     for (int i = 0; i < num_threads_; i++) {
-        args[i] = {i, assignments_, &finished_, &mutex_, &still_running_};
-        pool_.push_back(std::thread(parallelSpawnWorkerThreadSpinning, args + i));
-    }
-  
+        pool_.push_back(std::thread(&TaskSystemParallelThreadPoolSpinning::parallelSpawnWorkerThreadSpinning, this, i));
+    }  
 }
 
 TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {
@@ -189,19 +181,27 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_tota
     // method in Part A.  The implementation provided below runs all
     // tasks sequentially on the calling thread.
     //
+    
+    num_completed_ = 0;
 
     for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
+        Task task = {runnable, i, num_total_tasks};
+        task_q_mutex_.lock();
+        unassigned_tasks_.push(task);
+        task_q_mutex_.unlock();
+    }
+    
+   
+    while (true) {
+         num_completed_mutex_.lock();
+         if (num_completed_ == num_total_tasks) {
+            num_completed_mutex_.unlock();
+            break;
+         }
+         num_completed_mutex_.unlock();
     }
 
-    int tasks_per_thread = (num_total_tasks + num_threads_ - 1) / num_threads_;
-    for (int i = 0; i < num_total_tasks; i += tasks_per_thread) {
-        mutex_.lock();
-        still_running_ += 1;
-        mutex_.unlock();
-        assignments_[i / tasks_per_thread] = {true, runnable, i, std::min(num_total_tasks, i + tasks_per_thread), num_total_tasks};
-    }
-    while (still_running_ > 0) {}
+    
 }
 
 TaskID TaskSystemParallelThreadPoolSpinning::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,

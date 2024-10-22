@@ -4,6 +4,7 @@
 #include "itasksys.h"
 #include <mutex>
 #include <thread>
+#include <queue>
 #include <vector>
 
 /*
@@ -37,16 +38,16 @@ class TaskSystemParallelSpawn: public ITaskSystem {
         TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                 const std::vector<TaskID>& deps);
         void sync();
+    private:
+        int num_threads_;
 };
 
 typedef struct
 {
-    bool assigned;
     IRunnable* runnable;
-    int task_start_index;
-    int task_end_index;
+    int task_index;
     int num_total_tasks;
-} PoolAssignment;
+} Task;
 
 /*
  * TaskSystemParallelThreadPoolSpinning: This class is the student's
@@ -65,12 +66,14 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
         void sync();
         
     private:
+        void parallelSpawnWorkerThreadSpinning(int id);
         std::vector<std::thread> pool_;
-        PoolAssignment* assignments_;
+        std::queue<Task> unassigned_tasks_;
         bool finished_;
         int num_threads_;
-        int still_running_;
-        std::mutex mutex_; 
+        int num_completed_;
+        std::mutex task_q_mutex_; 
+        std::mutex num_completed_mutex_;
 };
 
 /*
