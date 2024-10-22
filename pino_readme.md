@@ -1,21 +1,16 @@
 Pino updates:
 
-work so far on part a, step 2: code can be found in branch part_a_2_pino
+**part a step 2 is done**
+- main implementation idea: maintain queue of tasks unassigned to threads
+- each free thread checks if the task queue is empty; if not, it pops the queue and completes the front-most task
+- one a thread finishes a task, it increments num_completed_; once num_completed_ is equal to num_total_tasks, run exits.
 
-**in the constructor:**
+*passes all performance tests (usually) - there's some instability on myth so we may have to double check on aws
 
--array of threads, called pool_
--array of PoolAssignments, called assignments_, one per thread:
-  - PoolAssignment structs keep track of work assigned to each thread
-- finished_
-  - bool, initially set to false. deconstructor sets this to true and is an indication for the spinning threads to stop
-- still_running_
-  - keeps track of number of threads that still has not finished its assigned work
-  - this is a SHARED resource: each thread decrements still_running_ when it finishes its assigned load
-- mutex_
-  - currently used to prevent multiple threads changing still_running_ at the same time
+**part a step 3 - initial work**
+- two areas of work:
+ (a) run should be put to sleep until all tasks are completed
+(b) each thread should be put to sleep if the task queue is empty
 
-**in run**
-- does static assignment of loads, similar to in step 1
-- assigns a new load to a thread by updating assignments_, and increments still_running_ by 1
-- run waits until still_running_ becomes 0 before exiting, ensuring its synchrony guarantee
+I believe (a) is done. However, the code I did for (b) runs into some sort of deadlock.
+
