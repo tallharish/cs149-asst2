@@ -1,4 +1,4 @@
-Pino updates:
+Pino updates (can be found in branch part_a_3_pino)
 
 **part a step 2 is done**
 - main implementation idea: maintain queue of tasks unassigned to threads
