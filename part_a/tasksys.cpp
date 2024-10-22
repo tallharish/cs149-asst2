@@ -1,4 +1,5 @@
 #include "tasksys.h"
+#include "iostream"
 
 IRunnable::~IRunnable() {}
 
@@ -66,9 +67,12 @@ void parallelSpawnWorkerThread(ParallelSpawnWorkerArgs *const args) {
     }
 }
 
-void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
+void parallelSpawnSingleTaskThread(ParallelSpawnWorkerArgs *const args) {
+    args->runnable->runTask(args->task_start_index, args->num_total_tasks);
+}
 
-    
+/*
+void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
     //
     // TODO: CS149 students will modify the implementation of this
     // method in Part A.  The implementation provided below runs all
@@ -84,6 +88,34 @@ void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
         if (worker.joinable()) {
             worker.join();
         }
+    }
+}
+*/
+
+void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
+
+    //
+    // TODO: CS149 students will modify the implementation of this
+    // method in Part A.  The implementation provided below runs all
+    // tasks sequentially on the calling thread.
+
+    int task_index = 0;
+    int iteration_index = 0;
+    while (task_index < num_total_tasks) {
+        for (int j = 0; j < std::min(parallel_threads, (num_total_tasks - iteration_index*parallel_threads)); j += 1) {
+            workerArgs[j] = {runnable, task_index, task_index, num_total_tasks};
+            workers.push_back(std::thread(parallelSpawnSingleTaskThread, &workerArgs[j]));
+            std::cout << "Assigning task " << task_index << " to thread %d" << j << " worker size " << workers.size() << std::endl;
+            //printf(" %d to thread %d, vector size %d", task_index, j, workers.size());
+            task_index += 1;
+        }
+        iteration_index += 1;
+        for (std::thread& worker : workers) {
+            if (worker.joinable()) {
+                worker.join();
+            }
+        }
+        workers.clear();
     }
 }
 
