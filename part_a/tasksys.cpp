@@ -183,15 +183,14 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_tota
     //
     
     num_completed_ = 0;
-
+    task_q_mutex_.lock();
     for (int i = 0; i < num_total_tasks; i++) {
         Task task = {runnable, i, num_total_tasks};
-        task_q_mutex_.lock();
         unassigned_tasks_.push(task);
-        task_q_mutex_.unlock();
     }
+    task_q_mutex_.unlock();
     
-   
+    /* Following code ensures that run() returns only when all tasks are complete*/
     while (true) {
          num_completed_mutex_.lock();
          if (num_completed_ == num_total_tasks) {
