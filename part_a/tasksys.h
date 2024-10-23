@@ -103,8 +103,6 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
         std::mutex task_q_mutex_; 
         std::mutex num_completed_mutex_;
 
-        // std::mutex thread_wait_mutex_;
-        // std::mutex run_wait_mutex_;
         std::condition_variable task_q_cv_;
         std::condition_variable num_completed_cv_;
 };

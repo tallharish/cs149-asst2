@@ -2,6 +2,12 @@
 #define _TASKSYS_H
 
 #include "itasksys.h"
+#include <atomic>
+#include <condition_variable>
+#include <map>
+#include <thread>
+#include <queue>
+#include <vector>
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
@@ -53,6 +59,13 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
         void sync();
 };
 
+typedef struct
+{
+    IRunnable* runnable;
+    int task_index;
+    int num_total_tasks;
+} Task;
+
 /*
  * TaskSystemParallelThreadPoolSleeping: This class is the student's
  * optimized implementation of a parallel task execution engine that uses
@@ -68,6 +81,28 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
         TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                 const std::vector<TaskID>& deps);
         void sync();
+    private:
+        std::map<TaskID, std::vector<TaskID>> children_;
+        std::mutex children_mutex_;
+
+        std::map<TaskID, int> num_incomplete_parents_;
+        std::map<TaskID, bool> task_completed_;
+        std::mutex task_completed_mutex_; // handles read/writes to task_completed_ AND num_incomplete_parents;
+
+        TaskID next_task_id_;
+        std::mutex task_id_mutex_;
+
+        void parallelSpawnWorkerThreadSleeping(int id);
+        std::vector<std::thread> pool_;
+        std::queue<Task> unassigned_tasks_;
+        std::atomic<bool> finished_;
+        int num_threads_;
+        int num_completed_;
+        std::mutex task_q_mutex_; 
+        std::mutex num_completed_mutex_;
+
+        std::condition_variable task_q_cv_;
+        std::condition_variable num_completed_cv_;
 };
 
 #endif

@@ -289,15 +289,6 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
                 num_completed_cv_.notify_one();
             }
             num_completed_mutex_.unlock();
-
-            // 
-            // {
-            //     num_completed_cv_.notify_one();
-            // }
-            // else
-            // {
-            //     num_completed_mutex_.unlock();
-            // }
         }
     }
 }
