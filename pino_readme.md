@@ -16,5 +16,5 @@ Here is my initial idea - *I implemented some of the initial bookkeeping in runA
    - bulk tasks that are 'ready' should then go through a similar thread assignment process to what we did for part a
    - we set task_id_completed_[A] to true
  
-   - *note that we need to keep track of task_id_completed, as when a new bulk task comes in via runAsyncWithDeps, we need to know the current number of incomplete parents.
+     - *note that we need to keep track of task_id_completed, as when a new bulk task comes in via runAsyncWithDeps, we need to know the current number of incomplete parents.
 
