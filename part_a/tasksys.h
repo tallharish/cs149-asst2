@@ -118,7 +118,7 @@ private:
     std::queue<Task> unassigned_tasks_;
     std::atomic<bool> finished_;
     int num_threads_;
-    std::atomic<int> num_completed_;
+    int num_completed_;
     std::mutex task_q_mutex_; 
     std::mutex num_completed_mutex_;
 

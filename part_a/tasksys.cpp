@@ -346,22 +346,13 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
         {
             cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
             assigned = false;
-            // num_completed_mutex_.lock();
+            num_completed_mutex_.lock();
             num_completed_ += 1;
+            num_completed_mutex_.unlock();
             if (num_completed_ == cur_task.num_total_tasks)
             {
                 num_completed_cv_.notify_one();
-            }
-            // num_completed_mutex_.unlock();
-
-            // 
-            // {
-            //     num_completed_cv_.notify_one();
-            // }
-            // else
-            // {
-            //     num_completed_mutex_.unlock();
-            // }
+            } 
         }
     }
 }
@@ -374,7 +365,7 @@ TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int n
     // Implementations are free to add new class member variables
     // (requiring changes to tasksys.h).
     //
-    num_threads_ = num_threads;
+    num_threads_ = num_threads - 1;
     finished_ = false;
 
     for (int i = 0; i < num_threads_; i++)
@@ -418,9 +409,36 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_tota
     task_q_mutex_.unlock();
     task_q_cv_.notify_all();
 
+    while (true) 
+    {
+        Task cur_task;
+        // Lock and wait on Queue
+        { // Start of task_q_mutex_ lock scope
+            // Lock on Queue
+            std::unique_lock<std::mutex> lck(task_q_mutex_);
+            if (unassigned_tasks_.size() > 0)
+            {
+                cur_task = unassigned_tasks_.front();
+                unassigned_tasks_.pop();
+            }
+            else {
+                break;
+            }
+        } // End of task_q_mutex_ lock scope
+
+        cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
+        num_completed_mutex_.lock();
+        num_completed_ += 1;
+        num_completed_mutex_.unlock();
+    }
+
     std::unique_lock<std::mutex> lck(num_completed_mutex_);
+    if (num_completed_ == num_total_tasks) {
+        return;
+    }
     num_completed_cv_.wait(lck, [this, num_total_tasks]
                            { return this->num_completed_ == num_total_tasks; });
+
     // while (true)
     // {
     //     num_completed_mutex_.lock();
