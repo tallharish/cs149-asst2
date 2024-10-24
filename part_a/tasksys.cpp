@@ -462,9 +462,6 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_tota
     }
 
     std::unique_lock<std::mutex> lck(num_completed_mutex_);
-    if (num_completed_ == num_total_tasks) {
-        return;
-    }
     num_completed_cv_.wait(lck, [this, num_total_tasks]
                            { return this->num_completed_ == num_total_tasks; });
 
