@@ -365,6 +365,7 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
                 assigned = true;
             }
         } // End of task_q_mutex_ lock scope
+        task_q_cv_.notify_one();
 
         if (assigned)
         {
