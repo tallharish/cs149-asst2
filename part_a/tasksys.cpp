@@ -231,9 +231,9 @@ void TaskSystemParallelThreadPoolSpinning::parallelSpawnWorkerThreadSpinning(int
             assigned = false;
             // upon completing task, increment num_completed_
             // when num_completed_ == num_total_tasks, the run function exits
-            // num_completed_mutex_.lock();
+            num_completed_mutex_.lock();
             num_completed_ += 1;
-            // num_completed_mutex_.unlock();
+            num_completed_mutex_.unlock();
         }
     }
 }
@@ -246,7 +246,7 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
     // Implementations are free to add new class member variables
     // (requiring changes to tasksys.h).
     //
-    num_threads_ = num_threads;
+    num_threads_ = num_threads - 1;
     finished_ = false;
     // create threads and push to vector
     for (int i = 0; i < num_threads_; i++)
@@ -281,12 +281,36 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable *runnable, int num_tota
     
     /* Following code ensures that run() returns only when all tasks are complete*/
     while (true) {
-         // num_completed_mutex_.lock();
-         if (num_completed_ == num_total_tasks) {
-            // num_completed_mutex_.unlock();
+        Task cur_task;
+        task_q_mutex_.lock();
+        // check if there is any unassigned tasks from the queue; if yes, current thread is assigned to complete the
+        // first take in queue
+        if (unassigned_tasks_.size() > 0)
+        {
+            cur_task = unassigned_tasks_.front();
+            unassigned_tasks_.pop();
+            task_q_mutex_.unlock();
+        }
+        else 
+        {
+            task_q_mutex_.unlock();
             break;
         }
-        // num_completed_mutex_.unlock();
+        
+        cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
+        // upon completing task, increment num_completed_
+        num_completed_mutex_.lock();
+        num_completed_ += 1;
+        num_completed_mutex_.unlock();
+    }
+
+    while (true) {
+         num_completed_mutex_.lock();
+         if (num_completed_ == num_total_tasks) {
+            num_completed_mutex_.unlock();
+            break;
+        }
+        num_completed_mutex_.unlock();
     }
 }
 
