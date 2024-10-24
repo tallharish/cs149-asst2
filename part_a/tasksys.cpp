@@ -272,21 +272,17 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable *runnable, int num_tota
     // tasks sequentially on the calling thread.
     //
     num_completed_ = 0;
-
-    // create a Task struct for each task index and push to queue
-    for (int i = 0; i < num_total_tasks; i++)
-    {
+    task_q_mutex_.lock();
+    for (int i = 0; i < num_total_tasks; i++) {
         Task task = {runnable, i, num_total_tasks};
-        task_q_mutex_.lock();
         unassigned_tasks_.push(task);
-        task_q_mutex_.unlock();
     }
-    // wait until number of completed tasks = num_total_tasks, before exiting
-    while (true)
-    {
-        num_completed_mutex_.lock();
-        if (num_completed_ == num_total_tasks)
-        {
+    task_q_mutex_.unlock();
+    
+    /* Following code ensures that run() returns only when all tasks are complete*/
+    while (true) {
+         num_completed_mutex_.lock();
+         if (num_completed_ == num_total_tasks) {
             num_completed_mutex_.unlock();
             break;
         }
