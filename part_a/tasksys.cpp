@@ -370,13 +370,17 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
         if (assigned)
         {
             cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
-            assigned = false;
             num_completed_mutex_.lock();
             num_completed_ += 1;
-            num_completed_mutex_.unlock();
+            
             if (num_completed_ == cur_task.num_total_tasks)
             {
+                num_completed_mutex_.unlock();
                 num_completed_cv_.notify_one();
+            }
+            else 
+            {
+                num_completed_mutex_.unlock();
             } 
         }
     }
@@ -464,16 +468,6 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_tota
     num_completed_cv_.wait(lck, [this, num_total_tasks]
                            { return this->num_completed_ == num_total_tasks; });
 
-    // while (true)
-    // {
-    //     num_completed_mutex_.lock();
-    //     if (num_completed_ == num_total_tasks)
-    //     {
-    //         num_completed_mutex_.unlock();
-    //         break;
-    //     }
-    //     num_completed_mutex_.unlock();
-    // }
 }
 
 TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnable, int num_total_tasks,
