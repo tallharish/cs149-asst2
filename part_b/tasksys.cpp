@@ -155,6 +155,13 @@ TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int n
     // Implementations are free to add new class member variables
     // (requiring changes to tasksys.h).
     //
+    num_threads_ = num_threads - 1;
+    finished_ = false;
+
+    for (int i = 0; i < num_threads_; i++)
+    {
+        pool_.push_back(std::thread(&TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping, this, i));
+    }
 }
 
 TaskSystemParallelThreadPoolSleeping::~TaskSystemParallelThreadPoolSleeping()
@@ -165,6 +172,12 @@ TaskSystemParallelThreadPoolSleeping::~TaskSystemParallelThreadPoolSleeping()
     // Implementations are free to add new class member variables
     // (requiring changes to tasksys.h).
     //
+    finished_ = true;
+    task_q_cv_.notify_all();
+    for (int i = 0; i < num_threads_; i++)
+    {
+        pool_[i].join();
+    }
 }
 
 void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_total_tasks)
@@ -176,10 +189,43 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_tota
     // tasks sequentially on the calling thread.
     //
 
+    num_completed_ = 0;
+    task_q_mutex_.lock();
     for (int i = 0; i < num_total_tasks; i++)
     {
-        runnable->runTask(i, num_total_tasks);
+        Task task = {runnable, i, num_total_tasks};
+        unassigned_tasks_.push(task);
     }
+    task_q_mutex_.unlock();
+    task_q_cv_.notify_all();
+
+    while (true)
+    {
+        Task cur_task;
+        // Lock and wait on Queue
+        { // Start of task_q_mutex_ lock scope
+            // Lock on Queue
+            std::unique_lock<std::mutex> lck(task_q_mutex_);
+            if (unassigned_tasks_.size() > 0)
+            {
+                cur_task = unassigned_tasks_.front();
+                unassigned_tasks_.pop();
+            }
+            else
+            {
+                break;
+            }
+        } // End of task_q_mutex_ lock scope
+
+        cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
+        num_completed_mutex_.lock();
+        num_completed_ += 1;
+        num_completed_mutex_.unlock();
+    }
+
+    std::unique_lock<std::mutex> lck(num_completed_mutex_);
+    num_completed_cv_.wait(lck, [this, num_total_tasks]
+                           { return this->num_completed_ == num_total_tasks; });
 }
 
 TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnable, int num_total_tasks,
@@ -206,4 +252,52 @@ void TaskSystemParallelThreadPoolSleeping::sync()
     //
 
     return;
+}
+
+void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int id)
+{
+    while (!finished_)
+    {
+        Task cur_task;
+        bool assigned = false;
+
+        // Lock and wait on Queue
+        { // Start of task_q_mutex_ lock scope
+            // Lock on Queue
+            std::unique_lock<std::mutex> lck(task_q_mutex_);
+            // Wait till a) Queue has something OR b) finished_
+            task_q_cv_.wait(lck, [this]
+                            { return !unassigned_tasks_.empty() || finished_; });
+            // Return if a) Queue is empty AND b) finished
+            if (finished_ && unassigned_tasks_.empty())
+            {
+                return;
+            }
+            // We have some work to do
+            if (unassigned_tasks_.size() > 0)
+            {
+                cur_task = unassigned_tasks_.front();
+                unassigned_tasks_.pop();
+                assigned = true;
+            }
+        } // End of task_q_mutex_ lock scope
+        task_q_cv_.notify_one();
+
+        if (assigned)
+        {
+            cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
+            num_completed_mutex_.lock();
+            num_completed_ += 1;
+
+            if (num_completed_ == cur_task.num_total_tasks)
+            {
+                num_completed_mutex_.unlock();
+                num_completed_cv_.notify_one();
+            }
+            else
+            {
+                num_completed_mutex_.unlock();
+            }
+        }
+    }
 }
