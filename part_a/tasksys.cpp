@@ -1,9 +1,5 @@
 #include "tasksys.h"
-#include <cassert>
-#include <iostream>
-#include <complex>
-#include <unistd.h>
-#define DEFAULT_NUM_THREADS 2
+#include "iostream"
 
 IRunnable::~IRunnable() {}
 
@@ -67,22 +63,13 @@ TaskSystemParallelSpawn::TaskSystemParallelSpawn(int num_threads) : ITaskSystem(
     // Implementations are free to add new class member variables
     // (requiring changes to tasksys.h).
     //
-
-    // Harish - Step B - create num_threads and keep them handy. Add new class member variables to keep track of the threads.
-    num_threads_ = num_threads;
+    parallel_threads = num_threads;
 }
 
 TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {}
 
-typedef struct
-{
-    IRunnable *runnable;
-    int task_start_index;
-    int task_end_index;
-    int num_total_tasks;
-} WorkerArgs;
-
-void parallelSpawnWorkerThread(WorkerArgs *const args)
+// Part a.1 - v1
+void parallelSpawnWorkerThread(ParallelSpawnWorkerArgs *const args)
 {
     for (int i = args->task_start_index; i < args->task_end_index; i++)
     {
@@ -90,6 +77,87 @@ void parallelSpawnWorkerThread(WorkerArgs *const args)
     }
 }
 
+// Part a.1 - v2
+void parallelSpawnSingleTaskThread(ParallelSpawnWorkerArgs *const args)
+{
+    args->runnable->runTask(args->task_start_index, args->num_total_tasks);
+}
+
+// Part a.1 - v3
+void parallelSpawnSingleTaskThreadQueue(ParallelSpawnWorkerArgs *const args)
+{
+    int local_task_index;
+    while (true)
+    {
+        // Acquire task_mutex;
+        args->task_mutex->lock();
+        // read task_index; assign to local_task_index, increment task_index;
+        local_task_index = *args->task_index;
+        *args->task_index += 1;
+        // Release task_mutex;
+        args->task_mutex->unlock();
+        if (local_task_index >= args->num_total_tasks)
+        {
+            break;
+        }
+        else
+        {
+            args->runnable->runTask(local_task_index, args->num_total_tasks);
+        }
+    }
+}
+
+/*
+// Part a.1 - v1
+void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
+    // v1 - baseline implementation - static assignment
+    // TODO: CS149 students will modify the implementation of this
+    // method in Part A.  The implementation provided below runs all
+    // tasks sequentially on the calling thread.
+
+    int tasks_per_thread = (num_total_tasks + parallel_threads - 1) / parallel_threads;
+    for (int i = 0; i < num_total_tasks; i += tasks_per_thread) {
+        workerArgs[i / tasks_per_thread] = {runnable, i, std::min(num_total_tasks, i + tasks_per_thread), num_total_tasks};
+        workers.push_back(std::thread(parallelSpawnWorkerThread, &workerArgs[i / tasks_per_thread]));
+    }
+
+    for (std::thread& worker : workers) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+}
+
+// Part a.1 - v2
+void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
+
+    // v2 - static assignment of one task per thread iteratively
+    // TODO: CS149 students will modify the implementation of this
+    // method in Part A.  The implementation provided below runs all
+    // tasks sequentially on the calling thread.
+
+    int task_index = 0;
+    int iteration_index = 0;
+    while (task_index < num_total_tasks) {
+        for (int j = 0; j < std::min(parallel_threads, (num_total_tasks - iteration_index*parallel_threads)); j += 1) {
+            workerArgs[j] = {runnable, task_index, task_index, num_total_tasks};
+            workers.push_back(std::thread(parallelSpawnSingleTaskThread, &workerArgs[j]));
+            std::cout << "Assigning task " << task_index << " to thread %d" << j << " worker size " << workers.size() << std::endl;
+            //printf(" %d to thread %d, vector size %d", task_index, j, workers.size());
+            task_index += 1;
+        }
+        iteration_index += 1;
+        for (std::thread& worker : workers) {
+            if (worker.joinable()) {
+                worker.join();
+            }
+        }
+        workers.clear();
+    }
+}
+*/
+
+// Part a.1 - v3
 void TaskSystemParallelSpawn::run(IRunnable *runnable, int num_total_tasks)
 {
 
@@ -97,22 +165,22 @@ void TaskSystemParallelSpawn::run(IRunnable *runnable, int num_total_tasks)
     // TODO: CS149 students will modify the implementation of this
     // method in Part A.  The implementation provided below runs all
     // tasks sequentially on the calling thread.
-    //
-
-    std::thread workers[num_threads_];
-    WorkerArgs args[num_threads_];
-
-    int tasks_per_thread = (num_total_tasks + num_threads_ - 1) / num_threads_;
-    for (int i = 0; i < num_total_tasks; i += tasks_per_thread)
+    int *task_index = new int;
+    std::mutex *task_mutex = new std::mutex;
+    *task_index = 0;
+    for (int j = 0; j < parallel_threads; j += 1)
     {
-        args[i / tasks_per_thread] = {runnable, i, std::min(num_total_tasks, i + tasks_per_thread), num_total_tasks};
-        workers[i / tasks_per_thread] = std::thread(parallelSpawnWorkerThread, args + i / tasks_per_thread);
+        workerArgs[j] = {runnable, -1, -1, num_total_tasks, task_mutex, task_index};
+        workers.push_back(std::thread(parallelSpawnSingleTaskThreadQueue, &workerArgs[j]));
     }
-
-    for (int j = 0; j < num_total_tasks; j += tasks_per_thread)
+    for (std::thread &worker : workers)
     {
-        workers[j / tasks_per_thread].join();
+        if (worker.joinable())
+        {
+            worker.join();
+        }
     }
+    workers.clear();
 }
 
 TaskID TaskSystemParallelSpawn::runAsyncWithDeps(IRunnable *runnable, int num_total_tasks,
