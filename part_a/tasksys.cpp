@@ -346,13 +346,13 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
         {
             cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
             assigned = false;
-            num_completed_mutex_.lock();
+            // num_completed_mutex_.lock();
             num_completed_ += 1;
             if (num_completed_ == cur_task.num_total_tasks)
             {
                 num_completed_cv_.notify_one();
             }
-            num_completed_mutex_.unlock();
+            // num_completed_mutex_.unlock();
 
             // 
             // {
