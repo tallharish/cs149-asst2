@@ -231,9 +231,9 @@ void TaskSystemParallelThreadPoolSpinning::parallelSpawnWorkerThreadSpinning(int
             assigned = false;
             // upon completing task, increment num_completed_
             // when num_completed_ == num_total_tasks, the run function exits
-            num_completed_mutex_.lock();
+            // num_completed_mutex_.lock();
             num_completed_ += 1;
-            num_completed_mutex_.unlock();
+            // num_completed_mutex_.unlock();
         }
     }
 }
@@ -281,12 +281,12 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable *runnable, int num_tota
     
     /* Following code ensures that run() returns only when all tasks are complete*/
     while (true) {
-         num_completed_mutex_.lock();
+         // num_completed_mutex_.lock();
          if (num_completed_ == num_total_tasks) {
-            num_completed_mutex_.unlock();
+            // num_completed_mutex_.unlock();
             break;
         }
-        num_completed_mutex_.unlock();
+        // num_completed_mutex_.unlock();
     }
 }
 
