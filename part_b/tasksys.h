@@ -8,6 +8,7 @@
 #include <thread>
 #include <queue>
 #include <vector>
+#include <unordered_set>
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
@@ -66,6 +67,12 @@ typedef struct
     int num_total_tasks;
 } Task;
 
+typedef struct
+{
+    IRunnable* runnable;
+    int num_total_tasks;
+} Task_group;
+
 /*
  * TaskSystemParallelThreadPoolSleeping: This class is the student's
  * optimized implementation of a parallel task execution engine that uses
@@ -82,15 +89,13 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
                                 const std::vector<TaskID>& deps);
         void sync();
     private:
-        std::map<TaskID, std::vector<TaskID>> children_;
-        std::mutex children_mutex_;
-
+        std::map<TaskID, std::unordered_set<TaskID>> parent_;
         std::map<TaskID, int> num_incomplete_parents_;
         std::map<TaskID, bool> task_completed_;
-        std::mutex task_completed_mutex_; // handles read/writes to task_completed_ AND num_incomplete_parents;
-
+        std::map<TaskID, Task_group> task_lookup_; // adding to same lock!
         TaskID next_task_id_;
-        std::mutex task_id_mutex_;
+        std::unordered_set<TaskID> pending_tasks_;
+        std::mutex task_management_mutex_; // handles read/writes to task_completed_ AND num_incomplete_parents;
 
         void parallelSpawnWorkerThreadSleeping(int id);
         std::vector<std::thread> pool_;
@@ -103,6 +108,9 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
 
         std::condition_variable task_q_cv_;
         std::condition_variable num_completed_cv_;
+        void reset_num_completed();
+        void add_tasks_queue(IRunnable* runnable, int num_total_tasks);
+        void wait_unassigned_tasks(int num_total_tasks);
 };
 
 #endif
