@@ -325,6 +325,7 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnabl
             }
             ready_q_mutex_.unlock();
             ready_q_cv_.notify_all();
+            // task_completed_cv_.notify_all(); // TODO: we should rename this cv 
         }
         // else 
         // {
@@ -425,7 +426,7 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
                 // std::cout << "thread " << id << " running task " << cur_task.BulkTask_id << "." << cur_task.task_index << "\n";
             }
         } // End of ready_q_mutex_ lock scope
-        ready_q_cv_.notify_one(); // Gavin thinks it is not necessary
+        // ready_q_cv_.notify_one(); // Gavin thinks it is not necessary
 
         if (assigned)
         {
