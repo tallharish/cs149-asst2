@@ -123,9 +123,12 @@ private:
     std::map<TaskID, BulkTask> BulkTask_lookup_;
     TaskID next_BulkTask_id_;
     std::mutex BulkTask_mutex_;
+    // std::condition_variable BulkTask_cv_;
+
+    // int unscheduled_BulkTasks; 
 
     // New Methods
-    void add_tasks_ready_q(TaskID BulkTask_id);
+    void add_tasks_ready_q(std::vector<TaskID> BulkTask_ids);
     void on_task_complete(TaskID BulkTask_id);
 };
 
