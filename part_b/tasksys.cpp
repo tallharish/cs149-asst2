@@ -158,7 +158,7 @@ TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int n
     //
     num_threads_ = num_threads - 1;
     finished_ = false;
-    // unscheduled_BulkTasks = 0;
+    unscheduled_BulkTasks = 0;
     total_tasks_ = 0;
     task_completed_ = 0;
     next_BulkTask_id_ = 0;
@@ -185,21 +185,12 @@ TaskSystemParallelThreadPoolSleeping::~TaskSystemParallelThreadPoolSleeping()
     }
 }
 
-// IMPORTANT!!! this MUST ALWAYS be called while thread posses BulkTask_mutex_
-void TaskSystemParallelThreadPoolSleeping::add_tasks_ready_q(std::vector<TaskID> BulkTask_ids)
+void TaskSystemParallelThreadPoolSleeping::add_tasks_ready_q(std::vector<Task> tasks)
 {
     ready_q_mutex_.lock();
-    for (TaskID BulkTask_id: BulkTask_ids)
-    {
-        // std::cout << "inside add tasks ready q" << std::endl;
-        for (int i = 0; i < BulkTask_lookup_[BulkTask_id].num_total_tasks; i++)
-        {
-            Task task = {BulkTask_lookup_[BulkTask_id].runnable, i, BulkTask_lookup_[BulkTask_id].num_total_tasks, BulkTask_id};
-            ready_q_.push(task);
-        }
+    for (Task task: tasks) {
+        ready_q_.push(task);
     }
-    // unscheduled_BulkTasks -= BulkTask_ids.size();
-    
     ready_q_mutex_.unlock();
     ready_q_cv_.notify_all();
 }
@@ -207,12 +198,19 @@ void TaskSystemParallelThreadPoolSleeping::add_tasks_ready_q(std::vector<TaskID>
 void TaskSystemParallelThreadPoolSleeping::on_task_complete(TaskID BulkTask_id) {
     // check if this is the last task in BulkTask; if it is, see if any new BulkTasks can be scheduled
     
-    std::unique_lock<std::mutex> lck(BulkTask_mutex_);
+    BulkTask_lookup_mutex_.lock();
     
     // std::cout << "inside update deps after lock" << std::endl;
     BulkTask_lookup_[BulkTask_id].num_tasks_completed += 1; // TODO: separate mutex per task??
     if (BulkTask_lookup_[BulkTask_id].num_tasks_completed == BulkTask_lookup_[BulkTask_id].num_total_tasks) {
         std::vector<TaskID> child_to_be_scheduled;
+
+        // std::cout << "here1" << std::endl;
+        
+        BulkTask_lookup_mutex_.unlock();
+        
+        dep_mutex_.lock();
+        // std::cout << "here2" << std::endl;
         BulkTask_completed_[BulkTask_id] = true;
         for (TaskID child: BulkTask_children_[BulkTask_id]) {
             num_incomplete_parents_[child] -= 1;
@@ -220,9 +218,32 @@ void TaskSystemParallelThreadPoolSleeping::on_task_complete(TaskID BulkTask_id) 
                 child_to_be_scheduled.push_back(child);
             }
         }
-        add_tasks_ready_q(child_to_be_scheduled);
-        lck.unlock();
-        // BulkTask_cv_.notify_one(); // only thread that waits on this is main thread in sync
+        dep_mutex_.unlock();
+        
+        BulkTask_lookup_mutex_.lock();
+        std::vector<Task> tasks = {};
+        for (TaskID BulkTask_id: child_to_be_scheduled)
+        {
+            // std::cout << "inside add tasks ready q" << std::endl;
+            for (int i = 0; i < BulkTask_lookup_[BulkTask_id].num_total_tasks; i++)
+            {
+                Task task = {BulkTask_lookup_[BulkTask_id].runnable, i, BulkTask_lookup_[BulkTask_id].num_total_tasks, BulkTask_id};
+                tasks.push_back(task);
+            }
+        }
+        BulkTask_lookup_mutex_.unlock();
+
+        if (tasks.size() > 0) {
+            add_tasks_ready_q(tasks);
+            BulkTask_scheduled_mutex_.lock();
+            unscheduled_BulkTasks -= child_to_be_scheduled.size();
+            BulkTask_scheduled_mutex_.unlock();
+            BulkTask_scheduled_cv_.notify_one();
+        }
+    }
+    else 
+    {
+        BulkTask_lookup_mutex_.unlock();
     }
 }
 
@@ -246,29 +267,26 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnabl
     // TODO: CS149 students will implement this method in Part B.
     //    
     TaskID current_BulkTask_id;
-    bool new_tasks_scheduled = false;
     
-
     // Start of BulkTask_mutex_ lock scope
     {
-        std::unique_lock<std::mutex> lck(BulkTask_mutex_);
-        current_BulkTask_id = next_BulkTask_id_;
-        next_BulkTask_id_ += 1;
-
         // Increment total_tasks_
-        task_completed_mutex_.lock(); // TODO: I'm very worried about whether there could be deadlock here
+        task_completed_mutex_.lock(); 
         total_tasks_ += num_total_tasks;
         task_completed_mutex_.unlock();
-        // printf("TaskID %d, Total tasks %d\n", current_BulkTask_id, total_tasks_);
+
+        // std::unique_lock<std::mutex> lck(BulkTask_mutex_);
+        
+        current_BulkTask_id = next_BulkTask_id_;
+        BulkTask_lookup_mutex_.lock();
+        next_BulkTask_id_ += 1;
 
         // Track BulkTask
-        BulkTask task;
-        BulkTask_lookup_[current_BulkTask_id] = task;
-        BulkTask_lookup_[current_BulkTask_id].runnable = runnable;
-        BulkTask_lookup_[current_BulkTask_id].num_total_tasks = num_total_tasks;
-        BulkTask_lookup_[current_BulkTask_id].num_tasks_completed = 0;
+        BulkTask_lookup_[current_BulkTask_id] = {runnable, num_total_tasks, 0};
+        BulkTask_lookup_mutex_.unlock();
 
         // Populate children, update num_incomplete_parents
+        dep_mutex_.lock();
         int cur_incomplete_parents = 0;
         for (TaskID dep : deps)
         {
@@ -279,34 +297,33 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnabl
         
         // Add new key to BulkTask_completed_
         BulkTask_completed_[current_BulkTask_id] = false;
-
+        dep_mutex_.unlock();
         // ------check if current BulkTask ready to be scheduled ------   
-        // unscheduled_BulkTasks += 1;    
+            
 
         // If no incomplete deps, Add them to queue right away.
         if (cur_incomplete_parents == 0)
         {
-            new_tasks_scheduled = true;
             // Add tasks to ready queue. It acquires a lock inside add_tasks_ready_q
-            std::vector<TaskID> BulkTask_id_vec = {current_BulkTask_id};
-            add_tasks_ready_q(BulkTask_id_vec);
-            // printf("TaskID %d, adding tasks to readyQueue\n", current_BulkTask_id);
-
-            // Mark task as scheduled
-            BulkTask_scheduled_[current_BulkTask_id] = true;
+            ready_q_mutex_.lock();
+            for (int i = 0; i < num_total_tasks; i++) 
+            {
+                ready_q_.push({runnable, i, num_total_tasks, current_BulkTask_id});
+            }
+            ready_q_mutex_.unlock();
+            ready_q_cv_.notify_all();
         }
         else 
         {
-            BulkTask_scheduled_[current_BulkTask_id] = false;
+            BulkTask_scheduled_mutex_.lock();
+            unscheduled_BulkTasks += 1;
+            BulkTask_scheduled_mutex_.unlock();
         }
     }
     // End of BulkTask_mutex_ lock scope
+    // std::cout << current_BulkTask_id << std::endl;
+    // std::cout << "num task complete = " << task_completed_ << std::endl;
 
-    if (new_tasks_scheduled == true)
-    {
-        // Signal workers.
-        ready_q_cv_.notify_all();
-    }
     return current_BulkTask_id;
 }
 
@@ -318,6 +335,40 @@ void TaskSystemParallelThreadPoolSleeping::sync()
     
     // TODO: need to fix this so sync continues to do work
     // Do some WORK!
+    // std::cout << "hello" << std::endl;
+    while (true) {
+        // std::cout << "line 338, unscheduled bulktask = " << unscheduled_BulkTasks << std::endl;
+        std::unique_lock<std::mutex> lck(BulkTask_scheduled_mutex_);
+        if (unscheduled_BulkTasks == 0) {
+            break;
+        }
+        BulkTask_scheduled_cv_.wait(lck);
+        lck.unlock();
+        while (true) {
+            // std::cout << "line 346" << std::endl;
+            Task cur_task;
+            // Lock and wait on Queue
+            { // Start of task_q_mutex_ lock scope
+                // Lock on Queue
+                std::unique_lock<std::mutex> lck(ready_q_mutex_);
+                if (ready_q_.size() > 0)
+                {
+                    cur_task = ready_q_.front();
+                    ready_q_.pop();
+                }
+                else {
+                    break;
+                }
+            } // End of ready_q_mutex_ lock scope
+
+            cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
+            task_completed_mutex_.lock();
+            task_completed_ += 1;
+            task_completed_mutex_.unlock();
+            on_task_complete(cur_task.BulkTask_id);
+           
+        }
+    }
     
     // while (true)
     // {
@@ -381,8 +432,8 @@ void TaskSystemParallelThreadPoolSleeping::sync()
     task_completed_cv_.wait(lck, [this]
                             { return this->task_completed_ == this->total_tasks_; });
     // reset task counter just in case of wraparounds
-    // task_completed_ = 0;
-    // total_tasks_ = 0;
+    task_completed_ = 0;
+    total_tasks_ = 0;
     return;
 }
 
