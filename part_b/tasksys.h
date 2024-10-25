@@ -110,8 +110,8 @@ private:
     std::mutex ready_q_mutex_;
 
     // Tasks
-    int task_completed_;
-    int total_tasks_;
+    int num_BulkTask_completed_;
+    int total_BulkTasks_;
     std::mutex task_completed_mutex_;
     std::condition_variable task_completed_cv_;
 
