@@ -2,12 +2,15 @@
 #define _TASKSYS_H
 
 #include "itasksys.h"
+#include <iostream>
 #include <thread>
 #include <vector>
 #include <mutex>
 #include <queue>
 #include <atomic>
 #include <condition_variable>
+#include <map>
+#include <unordered_set>
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
@@ -64,10 +67,17 @@ public:
 
 typedef struct
 {
-    IRunnable* runnable;
+    IRunnable *runnable;
     int task_index;
     int num_total_tasks;
+    TaskID BulkTask_id;
 } Task;
+
+typedef struct
+{
+    IRunnable *runnable;
+    int num_total_tasks;
+} BulkTask;
 
 /*
  * TaskSystemParallelThreadPoolSleeping: This class is the student's
@@ -87,17 +97,32 @@ public:
     void sync();
 
 private:
+    // Thread Pool
     void parallelSpawnWorkerThreadSleeping(int id);
     std::vector<std::thread> pool_;
-    std::queue<Task> unassigned_tasks_;
     std::atomic<bool> finished_;
     int num_threads_;
-    int num_completed_;
-    std::mutex task_q_mutex_;
-    std::mutex num_completed_mutex_;
 
-    std::condition_variable task_q_cv_;
-    std::condition_variable num_completed_cv_;
+    // Worker Tasks
+    std::queue<Task> ready_q_;
+    std::condition_variable ready_q_cv_;
+    std::mutex ready_q_mutex_;
+
+    // Tasks
+    int task_completed_;
+    int total_tasks_;
+    std::mutex task_completed_mutex_;
+    std::condition_variable task_completed_cv_;
+
+    // BulkTasks
+    std::map<TaskID, bool> BulkTask_scheduled_;
+    std::map<TaskID, std::vector<TaskID>> BulkTask_children_; // Note Child, not parent.
+    std::map<TaskID, BulkTask> BulkTask_lookup_;
+    TaskID next_BulkTask_id_;
+    std::mutex BulkTask_mutex_;
+
+    // New Methods
+    void add_tasks_ready_q(IRunnable *runnable, int num_total_tasks, TaskID BulkTask_id);
 };
 
 #endif
