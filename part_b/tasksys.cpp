@@ -157,6 +157,7 @@ TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int n
     //
     num_threads_ = num_threads - 1;
     finished_ = false;
+    next_BulkTask_id_ = 0;
 
     for (int i = 0; i < num_threads_; i++)
     {
@@ -233,6 +234,20 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_tota
                             { return this->task_completed_ == num_total_tasks; });
 }
 
+// void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_total_tasks)
+// {
+
+//     //
+//     // TODO: CS149 students will modify the implementation of this
+//     // method in Parts A and B.  The implementation provided below runs all
+//     // tasks sequentially on the calling thread.
+//     //
+
+//     std::vector<TaskID> deps;
+//     TaskID task_id = runAsyncWithDeps(runnable, num_total_tasks, deps);
+//     sync();
+// }
+
 TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnable, int num_total_tasks,
                                                               const std::vector<TaskID> &deps)
 {
@@ -247,7 +262,6 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnabl
     // Start of BulkTask_mutex_ lock scope
     {
         std::unique_lock<std::mutex> lck(BulkTask_mutex_);
-
         current_BulkTask_id = next_BulkTask_id_;
         next_BulkTask_id_ += 1;
 
@@ -255,6 +269,7 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnabl
         task_completed_mutex_.lock();
         total_tasks_ += num_total_tasks;
         task_completed_mutex_.unlock();
+        // printf("TaskID %d, Total tasks %d\n", current_BulkTask_id, total_tasks_);
 
         // Track BulkTask
         BulkTask task;
@@ -277,6 +292,7 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnabl
             new_tasks_scheduled = true;
             // Add tasks to ready queue. It acquires a lock inside add_tasks_ready_q
             add_tasks_ready_q(BulkTask_lookup_[current_BulkTask_id].runnable, BulkTask_lookup_[current_BulkTask_id].num_total_tasks, current_BulkTask_id);
+            // printf("TaskID %d, adding tasks to readyQueue\n", current_BulkTask_id);
 
             // Mark task as scheduled
             BulkTask_scheduled_[current_BulkTask_id] = true;
@@ -290,7 +306,7 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnabl
         ready_q_cv_.notify_all();
     }
 
-    return 0;
+    return current_BulkTask_id;
 }
 
 void TaskSystemParallelThreadPoolSleeping::sync()
@@ -356,6 +372,7 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
                 cur_task = ready_q_.front();
                 ready_q_.pop();
                 assigned = true;
+                // std::cout << "thread " << id << " running task " << cur_task.BulkTask_id << "." << cur_task.task_index << "\n";
             }
         } // End of ready_q_mutex_ lock scope
         ready_q_cv_.notify_one(); // Gavin thinks it is not necessary
