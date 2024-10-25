@@ -115,21 +115,15 @@ private:
     std::mutex task_completed_mutex_;
     std::condition_variable task_completed_cv_;
 
-    // std::mutex BulkTask_scheduled_mutex_;
-    // std::condition_variable BulkTask_scheduled_cv_;
-
     // BulkTasks
-    // std::map<TaskID, bool> BulkTask_scheduled_;  // not needed
-    std::map<TaskID, std::vector<TaskID>> BulkTask_children_; // Note Child, not parent
+    std::map<TaskID, std::vector<TaskID>> BulkTask_children_;
     std::map<TaskID, bool> BulkTask_completed_;
     std::map<TaskID, int> num_incomplete_parents_;
     std::map<TaskID, BulkTask> BulkTask_lookup_;
     TaskID next_BulkTask_id_;
-    // std::mutex BulkTask_mutex_;
 
     std::mutex BulkTask_lookup_mutex_;
     std::mutex dep_mutex_;
-    // std::condition_variable BulkTask_cv_;
 
     int unscheduled_BulkTasks;
 
