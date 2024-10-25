@@ -1,3 +1,7 @@
+
+--Edit: passes all tests on AWS now! (still doesnt pass super super light on myth, but I think this is fine)
+
+
 Pino updates (can be found in part_b_final)
 
 **sync now does work**
