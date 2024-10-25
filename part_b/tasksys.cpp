@@ -230,47 +230,50 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_tota
     // method in Parts A and B.  The implementation provided below runs all
     // tasks sequentially on the calling thread.
     //
+    std::vector<TaskID> empty_deps = {};
+    runAsyncWithDeps(runnable, num_total_tasks, empty_deps);
+    sync();
 
-    task_completed_ = 0;
-    int current_BulkTask_id = next_BulkTask_id_;
-    next_BulkTask_id_ += 1;
-    // add_tasks_ready_q(runnable, num_total_tasks, 0); 
-    ready_q_mutex_.lock();
-    for (int i = 0; i < num_total_tasks; i++)
-    {
-        Task task = {runnable, i, num_total_tasks, current_BulkTask_id};
-        ready_q_.push(task);
-    }
-    ready_q_mutex_.unlock();
-    ready_q_cv_.notify_all();
+    // task_completed_ = 0;
+    // int current_BulkTask_id = next_BulkTask_id_;
+    // next_BulkTask_id_ += 1;
+    // // add_tasks_ready_q(runnable, num_total_tasks, 0); 
+    // ready_q_mutex_.lock();
+    // for (int i = 0; i < num_total_tasks; i++)
+    // {
+    //     Task task = {runnable, i, num_total_tasks, current_BulkTask_id};
+    //     ready_q_.push(task);
+    // }
+    // ready_q_mutex_.unlock();
+    // ready_q_cv_.notify_all();
 
-    while (true)
-    {
-        Task cur_task;
-        // Lock and wait on Queue
-        { // Start of ready_q_mutex_ lock scope
-            // Lock on Queue
-            std::unique_lock<std::mutex> lck(ready_q_mutex_);
-            if (ready_q_.size() > 0)
-            {
-                cur_task = ready_q_.front();
-                ready_q_.pop();
-            }
-            else
-            {
-                break;
-            }
-        } // End of ready_q_mutex_ lock scope
+    // while (true)
+    // {
+    //     Task cur_task;
+    //     // Lock and wait on Queue
+    //     { // Start of ready_q_mutex_ lock scope
+    //         // Lock on Queue
+    //         std::unique_lock<std::mutex> lck(ready_q_mutex_);
+    //         if (ready_q_.size() > 0)
+    //         {
+    //             cur_task = ready_q_.front();
+    //             ready_q_.pop();
+    //         }
+    //         else
+    //         {
+    //             break;
+    //         }
+    //     } // End of ready_q_mutex_ lock scope
 
-        cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
-        task_completed_mutex_.lock();
-        task_completed_ += 1;
-        task_completed_mutex_.unlock();
-    }
+    //     cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
+    //     task_completed_mutex_.lock();
+    //     task_completed_ += 1;
+    //     task_completed_mutex_.unlock();
+    // }
 
-    std::unique_lock<std::mutex> lck(task_completed_mutex_);
-    task_completed_cv_.wait(lck, [this, num_total_tasks]
-                            { return this->task_completed_ == num_total_tasks; });
+    // std::unique_lock<std::mutex> lck(task_completed_mutex_);
+    // task_completed_cv_.wait(lck, [this, num_total_tasks]
+    //                         { return this->task_completed_ == num_total_tasks; });
 }
 
 // void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_total_tasks)
@@ -370,6 +373,7 @@ void TaskSystemParallelThreadPoolSleeping::sync()
     while (true)
     {
         // std::cout << "hello" << std::endl;
+        
         Task cur_task;
         // Lock and wait on Queue
         { // Start of ready_q_mutex_ lock scope
@@ -405,8 +409,8 @@ void TaskSystemParallelThreadPoolSleeping::sync()
     task_completed_cv_.wait(lck, [this]
                             { return this->task_completed_ == this->total_tasks_; });
     // reset task counter just in case of wraparounds
-    task_completed_ = 0;
-    total_tasks_ = 0;
+    // task_completed_ = 0;
+    // total_tasks_ = 0;
     return;
 }
 
@@ -424,6 +428,7 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
             // Wait till a) Queue has something OR b) finished_
             ready_q_cv_.wait(lck, [this]
                              { return !ready_q_.empty() || finished_; });
+            
             // Return if a) Queue is empty AND b) finished
             if (finished_ && ready_q_.empty())
             {
