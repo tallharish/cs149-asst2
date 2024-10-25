@@ -131,7 +131,7 @@ private:
     std::mutex dep_mutex_;
     // std::condition_variable BulkTask_cv_;
 
-    int unscheduled_BulkTasks; 
+    int unscheduled_BulkTasks;
 
     // New Methods
     void add_tasks_ready_q(std::vector<Task> tasks);
