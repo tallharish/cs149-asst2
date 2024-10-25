@@ -115,8 +115,8 @@ private:
     std::mutex task_completed_mutex_;
     std::condition_variable task_completed_cv_;
 
-    std::mutex BulkTask_scheduled_mutex_;
-    std::condition_variable BulkTask_scheduled_cv_;
+    // std::mutex BulkTask_scheduled_mutex_;
+    // std::condition_variable BulkTask_scheduled_cv_;
 
     // BulkTasks
     // std::map<TaskID, bool> BulkTask_scheduled_;  // not needed
