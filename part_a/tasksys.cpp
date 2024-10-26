@@ -374,13 +374,13 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
         if (assigned)
         {
             cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
-            task_q_mutex_.lock();
+            num_completed_mutex_.lock();
             num_completed_ += 1;
             if (num_completed_ == cur_task.num_total_tasks)
             {
                 run_completed = true;
             }
-            task_q_mutex_.unlock();
+            num_completed_mutex_.unlock();
         }
         if (run_completed)
         {
@@ -475,12 +475,12 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_tota
         if (assigned)
         {
             cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
-            task_q_mutex_.lock();
+            num_completed_mutex_.lock();
             num_completed_ += 1;
-            task_q_mutex_.unlock();
+            num_completed_mutex_.unlock();
         }
     }
-    std::unique_lock<std::mutex> lck(task_q_mutex_);
+    std::unique_lock<std::mutex> lck(num_completed_mutex_);
     all_completed_cv_.wait(lck, [this, num_total_tasks]
                             { return (num_completed_ == num_total_tasks); });
 }
