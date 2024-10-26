@@ -348,6 +348,7 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
     {
         Task cur_task;
         bool assigned = false;
+        bool run_completed = false;
 
         // Lock and wait on Queue
         { // Start of task_q_mutex_ lock scope
@@ -367,23 +368,21 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
                 cur_task = unassigned_tasks_.front();
                 unassigned_tasks_.pop();
                 assigned = true;
+                num_completed_ += 1;
+                if (num_completed_ == cur_task.num_total_tasks)
+                {
+                    run_completed = true;
+                }
             }
         } // End of task_q_mutex_ lock scope
 
         if (assigned)
         {
             cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
-            task_q_mutex_.lock();
-            num_completed_ += 1;
-            if (num_completed_ == cur_task.num_total_tasks)
-            {
-                task_q_mutex_.unlock();
-                task_q_cv_.notify_all();
-            }
-            else
-            {
-                task_q_mutex_.unlock();
-            }
+        }
+        if (run_completed)
+        {
+            task_q_cv_.notify_all();
         }
     }
 }
@@ -464,21 +463,15 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_tota
                 cur_task = unassigned_tasks_.front();
                 unassigned_tasks_.pop();
                 assigned = true;
+                num_completed_ += 1;
             }
         } // End of task_q_mutex_ lock scope
 
         if (assigned)
         {
             cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
-            task_q_mutex_.lock();
-            num_completed_ += 1;
-            task_q_mutex_.unlock();
         }
     }
-
-    // std::unique_lock<std::mutex> lck(num_completed_mutex_);
-    // num_completed_cv_.wait(lck, [this, num_total_tasks]
-    //                        { return this->num_completed_ == num_total_tasks; });
 }
 
 TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnable, int num_total_tasks,
