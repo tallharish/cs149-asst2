@@ -273,14 +273,16 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable *runnable, int num_tota
     //
     num_completed_ = 0;
     task_q_mutex_.lock();
-    for (int i = 0; i < num_total_tasks; i++) {
+    for (int i = 0; i < num_total_tasks; i++)
+    {
         Task task = {runnable, i, num_total_tasks};
         unassigned_tasks_.push(task);
     }
     task_q_mutex_.unlock();
-    
+
     /* Following code ensures that run() returns only when all tasks are complete*/
-    while (true) {
+    while (true)
+    {
         Task cur_task;
         task_q_mutex_.lock();
         // check if there is any unassigned tasks from the queue; if yes, current thread is assigned to complete the
@@ -291,12 +293,12 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable *runnable, int num_tota
             unassigned_tasks_.pop();
             task_q_mutex_.unlock();
         }
-        else 
+        else
         {
             task_q_mutex_.unlock();
             break;
         }
-        
+
         cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
         // upon completing task, increment num_completed_
         num_completed_mutex_.lock();
@@ -304,9 +306,11 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable *runnable, int num_tota
         num_completed_mutex_.unlock();
     }
 
-    while (true) {
-         num_completed_mutex_.lock();
-         if (num_completed_ == num_total_tasks) {
+    while (true)
+    {
+        num_completed_mutex_.lock();
+        if (num_completed_ == num_total_tasks)
+        {
             num_completed_mutex_.unlock();
             break;
         }
@@ -365,23 +369,21 @@ void TaskSystemParallelThreadPoolSleeping::parallelSpawnWorkerThreadSleeping(int
                 assigned = true;
             }
         } // End of task_q_mutex_ lock scope
-        task_q_cv_.notify_one();
 
         if (assigned)
         {
             cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
-            num_completed_mutex_.lock();
+            task_q_mutex_.lock();
             num_completed_ += 1;
-            
             if (num_completed_ == cur_task.num_total_tasks)
             {
-                num_completed_mutex_.unlock();
-                num_completed_cv_.notify_one();
+                task_q_mutex_.unlock();
+                task_q_cv_.notify_all();
             }
-            else 
+            else
             {
-                num_completed_mutex_.unlock();
-            } 
+                task_q_mutex_.unlock();
+            }
         }
     }
 }
@@ -438,33 +440,45 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_tota
     task_q_mutex_.unlock();
     task_q_cv_.notify_all();
 
-    while (true) 
+    while (true)
     {
         Task cur_task;
+        bool assigned = false;
+
         // Lock and wait on Queue
         { // Start of task_q_mutex_ lock scope
             // Lock on Queue
             std::unique_lock<std::mutex> lck(task_q_mutex_);
+            // Wait till a) Queue has something OR b) finished_
+            task_q_cv_.wait(lck, [this, num_total_tasks]
+                            { return !unassigned_tasks_.empty() || (num_completed_ == num_total_tasks); });
+
+            // We are done
+            if (num_completed_ == num_total_tasks)
+            {
+                break;
+            }
+            // We have some work to do
             if (unassigned_tasks_.size() > 0)
             {
                 cur_task = unassigned_tasks_.front();
                 unassigned_tasks_.pop();
-            }
-            else {
-                break;
+                assigned = true;
             }
         } // End of task_q_mutex_ lock scope
 
-        cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
-        num_completed_mutex_.lock();
-        num_completed_ += 1;
-        num_completed_mutex_.unlock();
+        if (assigned)
+        {
+            cur_task.runnable->runTask(cur_task.task_index, cur_task.num_total_tasks);
+            task_q_mutex_.lock();
+            num_completed_ += 1;
+            task_q_mutex_.unlock();
+        }
     }
 
-    std::unique_lock<std::mutex> lck(num_completed_mutex_);
-    num_completed_cv_.wait(lck, [this, num_total_tasks]
-                           { return this->num_completed_ == num_total_tasks; });
-
+    // std::unique_lock<std::mutex> lck(num_completed_mutex_);
+    // num_completed_cv_.wait(lck, [this, num_total_tasks]
+    //                        { return this->num_completed_ == num_total_tasks; });
 }
 
 TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnable, int num_total_tasks,
