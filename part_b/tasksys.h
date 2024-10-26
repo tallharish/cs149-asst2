@@ -112,8 +112,6 @@ private:
     // Tasks
     int num_BulkTask_completed_;
     int total_BulkTasks_;
-    std::mutex task_completed_mutex_;
-    std::condition_variable task_completed_cv_;
 
     // BulkTasks
     std::map<TaskID, std::vector<TaskID>> BulkTask_children_;
