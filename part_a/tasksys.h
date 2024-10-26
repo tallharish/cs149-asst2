@@ -123,6 +123,7 @@ private:
     // std::mutex thread_wait_mutex_;
     // std::mutex run_wait_mutex_;
     std::condition_variable task_q_cv_;
+    std::condition_variable all_completed_cv_;
 };
 
 #endif

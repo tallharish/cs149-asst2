@@ -71,47 +71,84 @@ class YourTask : public IRunnable {
  * do_async and num_elements. See `simpleTest`, `simpleTestSync`, and
  * `simpleTestAsync` as an example.
  */
-TestResults yourTest(ITaskSystem* t, bool do_async, int num_elements, int num_bulk_task_launches) {
-    // TODO: initialize your input and output buffers
-    int* output = new int[num_elements];
+// TestResults yourTest(ITaskSystem* t, bool do_async, int num_elements, int num_bulk_task_launches) {
+//     // TODO: initialize your input and output buffers
+//     int* output = new int[num_elements];
 
-    // TODO: instantiate your bulk task launches
+//     // TODO: instantiate your bulk task launches
+//     std::vector<PingPongTask*> runnables(num_bulk_task_launches);
+//     for (int i=0; i<num_bulk_task_launches; i++) {
+//         if (i % 2 == 0)
+//             runnables[i] = new PingPongTask(
+//                 num_elements, input, output,
+//                 equal_work, base_iters);
+//         else
+//             runnables[i] = new PingPongTask(
+//                 num_elements, output, input,
+//                 equal_work, base_iters);
+//     }
 
-    // Run the test
-    double start_time = CycleTimer::currentSeconds();
-    if (do_async) {
-        // TODO:
-        // initialize dependency vector
-        // make calls to t->runAsyncWithDeps and push TaskID to dependency vector
-        // t->sync() at end
-    } else {
-        // TODO: make calls to t->run
-    }
-    double end_time = CycleTimer::currentSeconds();
+//     // Run the test
+//     double start_time = CycleTimer::currentSeconds();
+//     TaskID prev_task_id;
+//     for (int i=0; i<num_bulk_task_launches / 2; i++) {
+//         if (do_async) {
+//             std::vector<TaskID> deps;
+//             if (i > 0) {
+//                 deps.push_back(prev_task_id);
+//             }
+//             prev_task_id = t->runAsyncWithDeps(
+//                 runnables[i], num_tasks, deps);
+//         } else {
+//             t->run(runnables[i], num_tasks);
+//         }
+//     }
+//     if (do_async) {
+//         t->sync();
+//         t->sync();
+//     }
+//     for (int i=num_bulk_task_launches / 2; i<num_bulk_task_launches; i++) {
+//         if (do_async) {
+//             std::vector<TaskID> deps;
+//             if (i > 0) {
+//                 deps.push_back(prev_task_id);
+//             }
+//             prev_task_id = t->runAsyncWithDeps(
+//                 runnables[i], num_tasks, deps);
+//         } else {
+//             t->run(runnables[i], num_tasks);
+//         }
+//     }
+//     if (do_async) {
+//         t->sync();
+//         t->sync();
+//     }
+        
+//     double end_time = CycleTimer::currentSeconds();
 
-    // Correctness validation
-    TestResults results;
-    results.passed = true;
+//     // Correctness validation
+//     TestResults results;
+//     results.passed = true;
 
-    for (int i=0; i<num_elements; i++) {
-        int value = 0; // TODO: initialize value
-        for (int j=0; j<num_bulk_task_launches; j++) {
-            // TODO: update value as expected
-        }
+//     for (int i=0; i<num_elements; i++) {
+//         int value = 0; // TODO: initialize value
+//         for (int j=0; j<num_bulk_task_launches; j++) {
+//             // TODO: update value as expected
+//         }
 
-        int expected = value;
-        if (output[i] != expected) {
-            results.passed = false;
-            printf("%d: %d expected=%d\n", i, output[i], expected);
-            break;
-        }
-    }
-    results.time = end_time - start_time;
+//         int expected = value;
+//         if (output[i] != expected) {
+//             results.passed = false;
+//             printf("%d: %d expected=%d\n", i, output[i], expected);
+//             break;
+//         }
+//     }
+//     results.time = end_time - start_time;
 
-    delete [] output;
+//     delete [] output;
 
-    return results;
-}
+//     return results;
+// }
 
 /*
  * ==================================================================
@@ -566,6 +603,111 @@ TestResults simpleTestSync(ITaskSystem* t) {
 TestResults simpleTestAsync(ITaskSystem* t) {
     return simpleTest(t, true);
 }
+
+//----
+TestResults yourTest(ITaskSystem* t, bool do_async, bool equal_work, int num_elements, int base_iters) {
+    // TODO: initialize your input and output buffers
+    int num_tasks = 320;
+    int num_bulk_task_launches = 64;   
+
+    int* input = new int[num_elements];
+    int* output = new int[num_elements];
+
+    // Init input
+    for (int i=0; i<num_elements; i++) {
+        input[i] = i;
+        output[i] = 0;
+    }
+
+    // TODO: instantiate your bulk task launches
+    std::vector<PingPongTask*> runnables(num_bulk_task_launches);
+    for (int i=0; i<num_bulk_task_launches; i++) {
+        if (i % 2 == 0)
+            runnables[i] = new PingPongTask(
+                num_elements, input, output,
+                equal_work, base_iters);
+        else
+            runnables[i] = new PingPongTask(
+                num_elements, output, input,
+                equal_work, base_iters);
+    }
+
+    // Run the test
+    double start_time = CycleTimer::currentSeconds();
+    TaskID prev_task_id;
+    for (int i=0; i<num_bulk_task_launches / 2; i++) {
+        if (do_async) {
+            std::vector<TaskID> deps;
+            if (i > 0) {
+                deps.push_back(prev_task_id);
+            }
+            prev_task_id = t->runAsyncWithDeps(
+                runnables[i], num_tasks, deps);
+        } else {
+            t->run(runnables[i], num_tasks);
+        }
+    }
+    if (do_async) {
+        t->sync();
+        t->sync();
+    }
+    for (int i=num_bulk_task_launches / 2; i<num_bulk_task_launches; i++) {
+        if (do_async) {
+            std::vector<TaskID> deps;
+            if (i > 0) {
+                deps.push_back(prev_task_id);
+            }
+            prev_task_id = t->runAsyncWithDeps(
+                runnables[i], num_tasks, deps);
+        } else {
+            t->run(runnables[i], num_tasks);
+        }
+    }
+    if (do_async) {
+        t->sync();
+        t->sync();
+    }
+        
+    double end_time = CycleTimer::currentSeconds();
+
+    // Correctness validation
+    TestResults results;
+    results.passed = true;
+
+    // Number of ping-pongs determines which buffer to look at for the results
+    int* buffer = (num_bulk_task_launches % 2 == 1) ? output : input; 
+
+    for (int i=0; i<num_elements; i++) {
+        int value = i;
+        for (int j=0; j<num_bulk_task_launches; j++) {
+            int iters = (!equal_work) ? PingPongTask::ping_pong_iters(
+                i, num_elements, base_iters) : base_iters;
+            value = PingPongTask::ping_pong_work(iters, value);
+        }
+
+        int expected = value;
+        if (buffer[i] != expected) {
+            results.passed = false;
+            printf("%d: %d expected=%d\n", i, buffer[i], expected);
+            break;
+        }
+    }
+    results.time = end_time - start_time;
+
+    delete [] input;
+    delete [] output;
+    for (int i=0; i<num_bulk_task_launches; i++)
+        delete runnables[i];
+    
+    return results;
+}
+TestResults yourTestAsync(ITaskSystem* t) {
+    int num_elements = 512 * 1024;
+    int base_iters = 32;
+    return yourTest(t, true, true, num_elements, base_iters);
+}
+
+//---
 
 /*
  * Computation: pingPongTest launches 400 bulk task launches with 64 tasks each.

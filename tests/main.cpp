@@ -54,6 +54,7 @@ int main(int argc, char** argv)
     int num_timing_iterations = DEFAULT_NUM_TIMING_ITERATIONS;
 
     TestResults (*test[n_tests])(ITaskSystem*) = {
+        yourTestAsync,
         simpleTestSync,
         simpleTestAsync,
         pingPongEqualTest,
@@ -86,6 +87,7 @@ int main(int argc, char** argv)
     };
 
     std::string test_names[n_tests] = {
+        "your_test_async",
         "simple_test_sync",
         "simple_test_async",
         "ping_pong_equal",
